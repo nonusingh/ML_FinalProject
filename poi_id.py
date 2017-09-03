@@ -85,19 +85,52 @@ features_list = ['poi','salary','to_messages', 'deferral_payments',
                 'other','from_this_person_to_poi','deferred_income','long_term_incentive',
                 'from_poi_to_this_person','from_poi']
 
-### Extract features and labels from dataset for local testing
-data = featureFormat(my_dataset, features_list, sort_keys = True)
-labels, features = targetFeatureSplit(data)
+### Is the new feature important?
+features_list1 = ['poi','salary','to_messages', 'deferral_payments',
+                'total_payments','exercised_stock_options','bonus','restricted_stock',
+                'shared_receipt_with_poi','total_stock_value','expenses','from_messages',
+                'other','from_this_person_to_poi','deferred_income','long_term_incentive',
+                'from_poi_to_this_person']
+features_list2 = ['poi','salary','to_messages', 'deferral_payments',
+                'total_payments','exercised_stock_options','bonus','restricted_stock',
+                'shared_receipt_with_poi','total_stock_value','expenses','from_messages',
+                'other','from_this_person_to_poi','deferred_income','long_term_incentive',
+                'from_poi_to_this_person','from_poi']
 
-from sklearn.cross_validation import train_test_split
-features_train, features_test, labels_train, labels_test = \
-    train_test_split(features, labels, test_size=0.3, random_state=42)
+from sklearn.naive_bayes import GaussianNB
+gnb_clf = GaussianNB()
+
+### Extract features and labels from dataset for local testing
+data1 = featureFormat(my_dataset, features_list1, sort_keys = True)
+labels1, features1 = targetFeatureSplit(data1)
+data2 = featureFormat(my_dataset, features_list2, sort_keys = True)
+labels2, features2 = targetFeatureSplit(data2)
+
+gnb_clf.fit(features1, labels1)
+print "Accuracy without new feature:", gnb_clf.score(features1, labels1)
+gnb_clf.fit(features2, labels2)
+print "Accuracy with new feature:", gnb_clf.score(features2, labels2)
+
+### Top important features
+from sklearn.feature_selection import SelectKBest, f_classif
+skb = SelectKBest()
+selected_features = skb.fit_transform(features2,labels2)
+features_selected=[features_list2[i+1] for i in skb.get_support(indices=True)]
+print 'Features selected by SelectKBest:'
+print features_selected
 
 ### Task 4: Try a varity of classifiers
 ### Please name your classifier clf for easy export below.
 ### Note that if you want to do PCA or other multi-stage operations,
 ### you'll need to use Pipelines. For more info:
 ### http://scikit-learn.org/stable/modules/pipeline.html
+
+data = featureFormat(my_dataset, features_list, sort_keys = True)
+labels, features = targetFeatureSplit(data)
+
+from sklearn.cross_validation import train_test_split
+features_train, features_test, labels_train, labels_test = \
+    train_test_split(features, labels, test_size=0.3, random_state=42)
 
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import SelectKBest
@@ -109,39 +142,29 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.decomposition import PCA
 
-
-scaler = MinMaxScaler()
-skb = SelectKBest()
-perc_var = .95
-pca = PCA(n_components=perc_var)
-
 ## Gaussian Classifier
 from sklearn.naive_bayes import GaussianNB
-g_clf = GaussianNB()    # Provided to give you a starting point. Try a varity of classifiers.
-g_pipe = Pipeline(steps=[('skb', skb), ('gaussian', g_clf)])
-g_pipe.fit(features_train, labels_train)
-g_pred = g_pipe.predict(features_test)
+g_clf = GaussianNB()
+g_clf.fit(features_train, labels_train)
+g_pred = g_clf.predict(features_test)
 
 ### Adaboost Classifier
 from sklearn.ensemble import AdaBoostClassifier
 a_clf = AdaBoostClassifier(random_state=42)
-a_pipe = Pipeline(steps=[('skb', skb), ('adaboost', a_clf)])
-a_pipe.fit(features_train, labels_train)
-a_pred = a_pipe.predict(features_test)
+a_clf.fit(features_train, labels_train)
+a_pred = a_clf.predict(features_test)
 
 ### Random Forest Classifier
 from sklearn.ensemble import RandomForestClassifier
 r_clf = RandomForestClassifier(random_state=42)
-r_pipe = Pipeline(steps=[('skb', skb), ('rfc', r_clf)])
-r_pipe.fit(features_train, labels_train)
-r_pred = r_pipe.predict(features_test)
+r_clf.fit(features_train, labels_train)
+r_pred = r_clf.predict(features_test)
 
 ### Decision Tree Classifier
 from sklearn.tree import DecisionTreeClassifier
 dt_clf = DecisionTreeClassifier(random_state=42)
-dt_pipe = Pipeline(steps = [('skb',skb),('decision_tree', dt_clf)])
-dt_pipe.fit(features_train, labels_train)
-dt_pred = dt_pipe.predict(features_test)
+dt_clf.fit(features_train, labels_train)
+dt_pred = dt_clf.predict(features_test)
 
 ## Evaluate Initial Classifiers
 from sklearn.metrics import precision_score
@@ -180,16 +203,17 @@ print "---------------------------------"
 # Example starting point. Try investigating other evaluation techniques!
 
 sss = StratifiedShuffleSplit(n_splits= 100, test_size= 0.3, random_state= 42)
+scaler = MinMaxScaler()
+perc_var = .95
+pca = PCA(n_components=perc_var)
 
-gnb = GaussianNB()
+clf = GaussianNB()    # Provided to give you a starting point. Try a varity of classifiers.
+pipe = Pipeline(steps=[('scaler', scaler),('pca', pca),('skb', skb), ('gaussian', clf)])
 
-estimators = [('scaler', scaler),('pca', pca), ('gaussian', gnb)]
-pipeline = Pipeline(estimators)
+params = dict(pca__n_components=[0.8,0.85,0.9,0.95],
+                    skb__k = [1,2,3,4])
 
-pca_params = dict(pca__n_components=[0.8,0.85,0.9,0.95])
-
-gs = GridSearchCV(pipeline, pca_params, cv=sss, scoring = 'f1')
-
+gs = GridSearchCV(pipe, params, cv=sss, scoring = 'f1')
 
 ##########
 # Output
